@@ -1,0 +1,1644 @@
+<title>Code Racer</title>
+<style>
+/* Layout: road strip (canvas) on top, cockpit below — mission + editor on the left, track list on the right; stacks on phones */
+:root{
+  --bg:#0A0E13; --bg2:#0F151C; --panel:#141C25; --panel2:#1A242F; --raise:#1F2C39;
+  --line:#25323F; --line2:#35485E;
+  --ink:#FFFFFF;
+  --azure:#3FA7FF; --amber:#FF9F35; --cyan:#26D7C8; --gold:#F5D33B; --steel:#4A6076;
+  --dark-on-bright:#06121C;
+  --disp:"Avenir Next Condensed","HelveticaNeue-CondensedBold","Arial Narrow",system-ui,sans-serif;
+  --body:Charter,"Bitstream Charter","Iowan Old Style",Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:18px}
+h1,h2,h3{font-family:var(--disp);font-weight:800;letter-spacing:-.01em;text-wrap:balance;margin:0}
+.eyebrow{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.14em;margin:0}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px 24px}
+.brand h1{font-size:clamp(34px,6vw,52px);line-height:.95;text-transform:uppercase;font-style:italic}
+.brand p{margin:6px 0 0;max-width:52ch}
+.langs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font-family:var(--disp);font-weight:700;font-size:17px;padding:9px 18px;border-radius:8px;border:2px solid var(--line2);background:var(--raise);color:var(--ink);cursor:pointer;min-width:84px}
+.tab[aria-pressed="true"]{background:var(--gold);border-color:var(--gold);color:var(--dark-on-bright)}
+.tab:hover{border-color:var(--gold)}
+
+/* track */
+.track{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.trackhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 18px;padding:10px 14px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.trackhead h2{font-size:22px}
+.stats{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums}
+.stats b{font-weight:700}
+canvas{display:block;width:100%;height:clamp(200px,30vw,300px);cursor:text}
+
+/* cockpit */
+.cockpit{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+@media (max-width:880px){.cockpit{grid-template-columns:minmax(0,1fr)}}
+.panel{border:1px solid var(--line);border-radius:10px;background:var(--panel);min-width:0}
+.panel>header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 16px;background:var(--panel2);border-bottom:1px solid var(--line);border-radius:10px 10px 0 0}
+.panel>header h3{font-size:16px;text-transform:uppercase;letter-spacing:.06em}
+.panel>header span{font-family:var(--mono);font-size:12px}
+.pbody{padding:16px;display:grid;gap:14px;min-width:0}
+
+.mission-goal{margin:0;max-width:66ch}
+.prompt{border:2px solid var(--azure);border-radius:10px;padding:12px 14px;background:var(--bg2);display:grid;gap:4px}
+.prompt.shake{animation:nudge .3s}
+@keyframes nudge{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.prompt p.task{margin:0;font-family:var(--disp);font-weight:700;font-size:21px;line-height:1.25}
+.hintbox{margin:4px 0 0;font-family:var(--mono);font-size:14px;border-top:1px dashed var(--line2);padding-top:8px;overflow-x:auto;white-space:pre}
+
+.editor{background:var(--bg2);border:1px solid var(--line);border-radius:8px;max-height:320px;overflow:auto;padding-block:8px}
+.editor-head{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:0 12px 6px;border-bottom:1px solid var(--line);margin-bottom:6px;gap:10px}
+.code{display:grid;min-width:max-content}
+.ln{display:grid;grid-template-columns:3em 1.8em auto;font-family:var(--mono);font-size:14px;line-height:1.75;white-space:pre;padding-right:16px}
+.ln .no{text-align:right;padding-right:10px;font-variant-numeric:tabular-nums;border-right:1px solid var(--line)}
+.ln .mk{text-align:center;font-weight:700}
+.ln.given .cd{font-style:italic}
+.ln.cur{background:var(--raise);box-shadow:inset 3px 0 0 var(--gold)}
+.ln.crashed{background:var(--raise);box-shadow:inset 3px 0 0 var(--amber)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-family:var(--mono);font-size:12px}
+
+form.drive{display:flex;gap:8px;flex-wrap:wrap}
+.field{flex:1 1 260px;min-width:0;display:flex;align-items:center;gap:8px;background:var(--bg2);border:2px solid var(--line2);border-radius:8px;padding:0 12px}
+.field:focus-within{border-color:var(--gold)}
+.field span{font-family:var(--mono);font-weight:700}
+.field input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--ink);font-family:var(--mono);font-size:16px;padding:13px 0}
+.field input::placeholder{color:var(--ink);opacity:.8}
+.field input:disabled{opacity:.8}
+.btn{font-family:var(--disp);font-weight:700;font-size:16px;padding:11px 18px;border-radius:8px;border:2px solid var(--gold);background:var(--gold);color:var(--dark-on-bright);cursor:pointer}
+.btn:disabled{opacity:.8;cursor:not-allowed}
+.btn.ghost{background:var(--raise);border-color:var(--line2);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--gold)}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+.console{margin:0;background:#06090D;border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:13px;line-height:1.6;min-height:130px;max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.console .err{font-weight:700;border-left:3px solid var(--amber);padding-left:8px;margin:4px 0}
+.console .ok{border-left:3px solid var(--cyan);padding-left:8px}
+.console .sys{font-style:italic}
+.console .out{border-left:3px solid var(--azure);padding-left:8px;margin-top:4px}
+
+/* tracks list */
+.tier{display:grid;gap:6px}
+.tier h4{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.14em;margin:6px 0 2px;font-weight:700}
+.lvl{display:grid;grid-template-columns:2.2em 1fr auto;align-items:center;gap:6px;width:100%;text-align:left;background:var(--raise);border:1px solid var(--line2);border-radius:7px;padding:7px 10px;color:var(--ink);font-family:var(--body);font-size:15px;cursor:pointer}
+.lvl:hover{border-color:var(--gold)}
+.lvl .n{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.lvl .s{font-family:var(--mono);font-size:14px;letter-spacing:.05em}
+.lvl[aria-current="true"]{border:2px solid var(--gold);font-weight:700}
+.progress{font-family:var(--mono);font-size:13px;margin:0}
+
+.howto{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:0;padding:0;list-style:none}
+.howto li{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--panel);font-size:15px}
+.howto b{font-family:var(--disp);font-size:16px;display:block}
+
+/* result modal */
+.modal{position:fixed;inset:0;background:rgba(5,8,12,.82);display:grid;place-items:center;padding:16px;z-index:10;overflow:auto}
+.card{width:min(460px,100%);background:var(--panel);border:2px solid var(--gold);border-radius:12px;padding:20px;display:grid;gap:10px}
+.card.fail{border-color:var(--amber)}
+.card h2{font-size:30px;text-transform:uppercase;font-style:italic}
+.card .stars{font-size:30px;letter-spacing:.12em;margin:0}
+.card p{margin:0;white-space:pre-line}
+.card pre{margin:0;background:#06090D;border:1px solid var(--line);border-left:3px solid var(--azure);border-radius:6px;padding:10px 12px;font-family:var(--mono);font-size:14px;overflow-x:auto}
+
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+footer{font-size:14px;max-width:80ch}
+
+/* legibility: every glyph white */
+body, body *{color:#FFFFFF}
+.tab[aria-pressed="true"], .btn:not(.ghost){color:#06121C !important}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <p class="eyebrow">30 tracks · Python · C · Java</p>
+      <h1>Code Racer</h1>
+      <p>Type each line of the program. Clean code drives your car to the next checkpoint. A bug crashes it.</p>
+    </div>
+    <div class="langs" role="group" aria-label="Language">
+      <button class="tab" data-lang="py" aria-pressed="true">Python</button>
+      <button class="tab" data-lang="c" aria-pressed="false">C</button>
+      <button class="tab" data-lang="java" aria-pressed="false">Java</button>
+    </div>
+  </header>
+
+  <section class="track" aria-label="Race track">
+    <div class="trackhead">
+      <div>
+        <p class="eyebrow" id="lvlTag">Easy · Track 1 of 20</p>
+        <h2 id="lvlName">Hello Road</h2>
+      </div>
+      <div class="stats" aria-live="polite">
+        <span>Cars <b id="lives">♥ ♥ ♥</b></span>
+        <span>Line <b id="stepCount">0/1</b></span>
+        <span>Crashes <b id="crashCount">0</b></span>
+        <span>Time <b id="timer">0:00</b></span>
+        <span>Compiler <b id="runner">checking…</b></span>
+      </div>
+    </div>
+    <canvas id="road" aria-label="Your car on the track. It moves one checkpoint per correct line and crashes on an error."></canvas>
+  </section>
+
+  <div class="cockpit">
+    <section class="panel" aria-label="Mission">
+      <header><h3>Mission</h3><span id="fileName">main.py</span></header>
+      <div class="pbody">
+        <p class="mission-goal" id="goal"></p>
+        <div class="prompt" id="promptBox">
+          <p class="eyebrow" id="promptTag">Line 1</p>
+          <p class="task" id="promptText"></p>
+          <div class="hintbox" id="hintBox" hidden></div>
+        </div>
+
+        <div class="editor" id="editor">
+          <div class="editor-head"><span id="editorFile">main.py</span><span>indentation is added for you</span></div>
+          <div class="code" id="code"></div>
+        </div>
+        <div class="legend"><span>▶ type this line</span><span>✓ compiled</span><span>✗ crashed here</span><span><i>italic</i> = given code</span></div>
+
+        <form class="drive" id="drive" autocomplete="off">
+          <label class="field" for="codeInput">
+            <span aria-hidden="true">&gt;</span>
+            <span class="sr">Type the line of code</span>
+            <input id="codeInput" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="type the line, then press Enter">
+          </label>
+          <button class="btn" type="submit" id="runBtn">Run line</button>
+        </form>
+        <div class="row">
+          <button class="btn ghost" type="button" id="hintBtn">Show answer (costs a star)</button>
+          <button class="btn ghost" type="button" id="restartBtn">Restart track</button>
+          <button class="btn ghost" type="button" id="realBtn" aria-pressed="true">Real compiler: On</button>
+        </div>
+
+        <div>
+          <p class="eyebrow" style="margin-bottom:6px">Console</p>
+          <div class="console" id="console" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel" aria-label="Tracks">
+      <header><h3>Tracks</h3><span id="langLabel">Python</span></header>
+      <div class="pbody">
+        <p class="progress" id="progress">0 / 60 stars</p>
+        <div id="levels"></div>
+      </div>
+    </aside>
+  </div>
+
+  <ul class="howto">
+    <li><b>Drive</b>Read the task in the blue box, type that one line and press Enter.</li>
+    <li><b>Crash</b>A compile error, runtime error or wrong output crashes the car. You get 3 cars per track.</li>
+    <li><b>Your own way</b>Write a line differently and the real compiler runs your whole program. If it prints the right output, you drive on.</li>
+    <li><b>Stars</b>3 stars for a clean run. Each crash or revealed answer costs one.</li>
+  </ul>
+  <footer>Lines that match the track's program pass instantly. Any other line is compiled and run for real with Python 3.13, gcc 13.2 or OpenJDK 22 on the free Wandbox service (wandbox.org), which can take a few seconds. If Wandbox can't be reached, the game falls back to its built-in checker.</footer>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="card" id="card" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <p class="eyebrow" id="mTag"></p>
+    <h2 id="mTitle"></h2>
+    <p class="stars" id="mStars"></p>
+    <p id="mBody"></p>
+    <pre id="mOut"></pre>
+    <div class="row">
+      <button class="btn" id="mPrimary"></button>
+      <button class="btn ghost" id="mSecondary"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   Track data. Each program is written line by line:
+     "@code"            given line (shown, not typed)
+     "code ¦ task"      line the player types, with its task
+   C and Java bodies are wrapped in main() automatically unless the
+   program already declares its own structure.
+------------------------------------------------------------------- */
+const LEVELS = [
+// ─────────────── EASY ───────────────
+{name:'Hello Road', tier:'Easy', goal:'Every program starts by saying something. Print a greeting to fire up the engine.', out:'Hello, World!',
+py:String.raw`
+print("Hello, World!") ¦ Print the text Hello, World!`,
+c:String.raw`
+printf("Hello, World!\n"); ¦ Use printf to print Hello, World! followed by \n`,
+java:String.raw`
+System.out.println("Hello, World!"); ¦ Use System.out.println to print Hello, World!`},
+
+{name:'Speedometer', tier:'Easy', goal:'Store the car\'s speed in a variable, then show it on the dashboard.', out:'60',
+py:String.raw`
+speed = 60 ¦ Create a variable named speed and set it to 60
+print(speed) ¦ Print the value of speed`,
+c:String.raw`
+int speed = 60; ¦ Declare an int named speed set to 60
+printf("%d\n", speed); ¦ Print speed with the %d format and \n`,
+java:String.raw`
+int speed = 60; ¦ Declare an int named speed set to 60
+System.out.println(speed); ¦ Print speed`},
+
+{name:'Pit Stop Math', tier:'Easy', goal:'Add two numbers and print the total.', out:'20',
+py:String.raw`
+a = 12 ¦ Set a to 12
+b = 8 ¦ Set b to 8
+total = a + b ¦ Store a + b in a variable named total
+print(total) ¦ Print total`,
+c:String.raw`
+int a = 12; ¦ Declare int a = 12
+int b = 8; ¦ Declare int b = 8
+int total = a + b; ¦ Declare int total holding a + b
+printf("%d\n", total); ¦ Print total with %d and \n`,
+java:String.raw`
+int a = 12; ¦ Declare int a = 12
+int b = 8; ¦ Declare int b = 8
+int total = a + b; ¦ Declare int total holding a + b
+System.out.println(total); ¦ Print total`},
+
+{name:'Driver Badge', tier:'Easy', goal:'Join two pieces of text to print the driver\'s badge.', out:'Driver: Max',
+py:String.raw`
+name = "Max" ¦ Set name to "Max"
+print("Driver: " + name) ¦ Print "Driver: " joined with name using +`,
+c:String.raw`
+char name[] = "Max"; ¦ Declare char name[] = "Max"
+printf("Driver: %s\n", name); ¦ printf "Driver: %s\n" with name`,
+java:String.raw`
+String name = "Max"; ¦ Declare String name = "Max"
+System.out.println("Driver: " + name); ¦ Print "Driver: " + name`},
+
+{name:'Fuel Bill', tier:'Easy', goal:'Multiply the litres by the price per litre to get the cost of a fill-up.', out:'80',
+py:String.raw`
+litres = 40 ¦ Set litres to 40
+price = 2 ¦ Set price to 2
+cost = litres * price ¦ Store litres * price in cost
+print(cost) ¦ Print cost`,
+c:String.raw`
+int litres = 40; ¦ Declare int litres = 40
+int price = 2; ¦ Declare int price = 2
+int cost = litres * price; ¦ Declare int cost holding litres * price
+printf("%d\n", cost); ¦ Print cost with %d and \n`,
+java:String.raw`
+int litres = 40; ¦ Declare int litres = 40
+int price = 2; ¦ Declare int price = 2
+int cost = litres * price; ¦ Declare int cost holding litres * price
+System.out.println(cost); ¦ Print cost`},
+
+{name:'Low Fuel Light', tier:'Easy', goal:'Turn on a warning when fuel drops below 50.', out:'Refuel',
+py:String.raw`
+fuel = 30 ¦ Set fuel to 30
+if fuel < 50: ¦ Start an if that checks whether fuel is less than 50
+    print("Refuel") ¦ Inside the if, print Refuel`,
+c:String.raw`
+int fuel = 30; ¦ Declare int fuel = 30
+if (fuel < 50) { ¦ Open an if block that checks fuel < 50
+    printf("Refuel\n"); ¦ Inside the block, print Refuel and \n
+@}`,
+java:String.raw`
+int fuel = 30; ¦ Declare int fuel = 30
+if (fuel < 50) { ¦ Open an if block that checks fuel < 50
+    System.out.println("Refuel"); ¦ Inside the block, print Refuel
+@}`},
+
+{name:'Speed Camera', tier:'Easy', goal:'Warn the driver when speed is over 80, otherwise say OK.', out:'Slow down',
+py:String.raw`
+speed = 90 ¦ Set speed to 90
+if speed > 80: ¦ Check whether speed is greater than 80
+    print("Slow down") ¦ Print Slow down
+else: ¦ Start the else branch
+    print("OK") ¦ Print OK`,
+c:String.raw`
+int speed = 90; ¦ Declare int speed = 90
+if (speed > 80) { ¦ Open an if block for speed > 80
+    printf("Slow down\n"); ¦ Print Slow down and \n
+} else { ¦ Close the if and open an else block on the same line
+    printf("OK\n"); ¦ Print OK and \n
+@}`,
+java:String.raw`
+int speed = 90; ¦ Declare int speed = 90
+if (speed > 80) { ¦ Open an if block for speed > 80
+    System.out.println("Slow down"); ¦ Print Slow down
+} else { ¦ Close the if and open an else block on the same line
+    System.out.println("OK"); ¦ Print OK
+@}`},
+
+{name:'Rev Counter', tier:'Easy', goal:'Use if, elif / else if and else to pick the right gear advice for the engine speed.', out:'Hold',
+py:String.raw`
+rpm = 4000 ¦ Set rpm to 4000
+if rpm > 6000: ¦ Check whether rpm is greater than 6000
+    print("Shift up") ¦ Print Shift up
+elif rpm < 2000: ¦ Add an elif that checks whether rpm is less than 2000
+    print("Shift down") ¦ Print Shift down
+else: ¦ Start the else branch
+    print("Hold") ¦ Print Hold`,
+c:String.raw`
+int rpm = 4000; ¦ Declare int rpm = 4000
+if (rpm > 6000) { ¦ Open an if block for rpm > 6000
+    printf("Shift up\n"); ¦ Print Shift up and \n
+} else if (rpm < 2000) { ¦ Close the block and open else if (rpm < 2000)
+    printf("Shift down\n"); ¦ Print Shift down and \n
+} else { ¦ Close the block and open an else block
+    printf("Hold\n"); ¦ Print Hold and \n
+@}`,
+java:String.raw`
+int rpm = 4000; ¦ Declare int rpm = 4000
+if (rpm > 6000) { ¦ Open an if block for rpm > 6000
+    System.out.println("Shift up"); ¦ Print Shift up
+} else if (rpm < 2000) { ¦ Close the block and open else if (rpm < 2000)
+    System.out.println("Shift down"); ¦ Print Shift down
+} else { ¦ Close the block and open an else block
+    System.out.println("Hold"); ¦ Print Hold
+@}`},
+
+{name:'Lap Counter', tier:'Easy', goal:'Use a for loop to count laps 1 to 5.', out:'1\n2\n3\n4\n5',
+py:String.raw`
+for lap in range(1, 6): ¦ Loop lap over range(1, 6)
+    print(lap) ¦ Print lap`,
+c:String.raw`
+for (int lap = 1; lap <= 5; lap++) { ¦ Loop int lap from 1 while lap <= 5, adding 1 each time
+    printf("%d\n", lap); ¦ Print lap with %d and \n
+@}`,
+java:String.raw`
+for (int lap = 1; lap <= 5; lap++) { ¦ Loop int lap from 1 while lap <= 5, adding 1 each time
+    System.out.println(lap); ¦ Print lap
+@}`},
+
+{name:'Countdown', tier:'Easy', goal:'Count down from 3 with a while loop, then start the race.', out:'3\n2\n1\nGo!',
+py:String.raw`
+count = 3 ¦ Set count to 3
+while count > 0: ¦ Loop while count is greater than 0
+    print(count) ¦ Print count
+    count -= 1 ¦ Subtract 1 from count
+print("Go!") ¦ After the loop, print Go!`,
+c:String.raw`
+int count = 3; ¦ Declare int count = 3
+while (count > 0) { ¦ Open a while loop that runs while count > 0
+    printf("%d\n", count); ¦ Print count with %d and \n
+    count--; ¦ Subtract 1 from count
+@}
+printf("Go!\n"); ¦ After the loop, print Go! and \n`,
+java:String.raw`
+int count = 3; ¦ Declare int count = 3
+while (count > 0) { ¦ Open a while loop that runs while count > 0
+    System.out.println(count); ¦ Print count
+    count--; ¦ Subtract 1 from count
+@}
+System.out.println("Go!"); ¦ After the loop, print Go!`},
+
+// ─────────────── MEDIUM ───────────────
+{name:'Odometer', tier:'Medium', goal:'Add up the numbers 1 to 10 with a loop and print the distance.', out:'55',
+py:String.raw`
+total = 0 ¦ Set total to 0
+for i in range(1, 11): ¦ Loop i over range(1, 11)
+    total += i ¦ Add i to total
+print(total) ¦ After the loop, print total`,
+c:String.raw`
+int total = 0; ¦ Declare int total = 0
+for (int i = 1; i <= 10; i++) { ¦ Loop int i from 1 while i <= 10, adding 1
+    total += i; ¦ Add i to total
+@}
+printf("%d\n", total); ¦ Print total with %d and \n`,
+java:String.raw`
+int total = 0; ¦ Declare int total = 0
+for (int i = 1; i <= 10; i++) { ¦ Loop int i from 1 while i <= 10, adding 1
+    total += i; ¦ Add i to total
+@}
+System.out.println(total); ¦ Print total`},
+
+{name:'Odd or Even', tier:'Medium', goal:'Use the remainder operator % to test whether a car number is even.', out:'Odd',
+py:String.raw`
+n = 7 ¦ Set n to 7
+if n % 2 == 0: ¦ Check whether n % 2 equals 0
+    print("Even") ¦ Print Even
+else: ¦ Start the else branch
+    print("Odd") ¦ Print Odd`,
+c:String.raw`
+int n = 7; ¦ Declare int n = 7
+if (n % 2 == 0) { ¦ Open an if block for n % 2 == 0
+    printf("Even\n"); ¦ Print Even and \n
+} else { ¦ Close the if and open an else block
+    printf("Odd\n"); ¦ Print Odd and \n
+@}`,
+java:String.raw`
+int n = 7; ¦ Declare int n = 7
+if (n % 2 == 0) { ¦ Open an if block for n % 2 == 0
+    System.out.println("Even"); ¦ Print Even
+} else { ¦ Close the if and open an else block
+    System.out.println("Odd"); ¦ Print Odd
+@}`},
+
+{name:'Lap Times', tier:'Medium', goal:'Store three lap times in a list or array, print the first one and how many there are.', out:'52\n3',
+py:String.raw`
+laps = [52, 48, 50] ¦ Create a list named laps holding 52, 48, 50
+print(laps[0]) ¦ Print the first item of laps
+print(len(laps)) ¦ Print the length of laps using len`,
+c:String.raw`
+int laps[] = {52, 48, 50}; ¦ Declare an int array laps[] holding 52, 48, 50
+printf("%d\n", laps[0]); ¦ Print the first element with %d and \n
+int count = sizeof(laps) / sizeof(laps[0]); ¦ Store the element count in int count using sizeof(laps) / sizeof(laps[0])
+printf("%d\n", count); ¦ Print count with %d and \n`,
+java:String.raw`
+int[] laps = {52, 48, 50}; ¦ Declare an int[] named laps holding 52, 48, 50
+System.out.println(laps[0]); ¦ Print the first element
+System.out.println(laps.length); ¦ Print the array's length`},
+
+{name:'Race Total', tier:'Medium', goal:'Loop over every lap time and add them into one race total.', out:'150',
+py:String.raw`
+laps = [52, 48, 50] ¦ Create the list laps = [52, 48, 50]
+total = 0 ¦ Set total to 0
+for t in laps: ¦ Loop t over every item in laps
+    total += t ¦ Add t to total
+print(total) ¦ Print total`,
+c:String.raw`
+int laps[] = {52, 48, 50}; ¦ Declare int laps[] = {52, 48, 50}
+int total = 0; ¦ Declare int total = 0
+for (int i = 0; i < 3; i++) { ¦ Loop int i from 0 while i < 3, adding 1
+    total += laps[i]; ¦ Add laps[i] to total
+@}
+printf("%d\n", total); ¦ Print total with %d and \n`,
+java:String.raw`
+int[] laps = {52, 48, 50}; ¦ Declare int[] laps = {52, 48, 50}
+int total = 0; ¦ Declare int total = 0
+for (int t : laps) { ¦ Open a for-each loop: int t over laps
+    total += t; ¦ Add t to total
+@}
+System.out.println(total); ¦ Print total`},
+
+{name:'Turbo Function', tier:'Medium', goal:'Write a function add that returns the sum of two numbers, then call it.', out:'7',
+py:String.raw`
+def add(a, b): ¦ Define a function add with parameters a and b
+    return a + b ¦ Return a + b
+print(add(3, 4)) ¦ Print the result of add(3, 4)`,
+c:String.raw`
+@#include <stdio.h>
+@
+int add(int a, int b) { ¦ Define a function int add(int a, int b) and open its body
+    return a + b; ¦ Return a + b
+@}
+@
+@int main() {
+    printf("%d\n", add(3, 4)); ¦ Print add(3, 4) with %d and \n
+@    return 0;
+@}`,
+java:String.raw`
+@public class Main {
+    static int add(int a, int b) { ¦ Define static int add(int a, int b) and open its body
+        return a + b; ¦ Return a + b
+@    }
+@
+@    public static void main(String[] args) {
+        System.out.println(add(3, 4)); ¦ Print add(3, 4)
+@    }
+@}`},
+
+{name:'Boost Check', tier:'Medium', goal:'Write a function that returns whether a speed is over 100, then print the answer. Each language prints true in its own way.', out:{py:'True', c:'1', java:'true'},
+py:String.raw`
+def is_fast(speed): ¦ Define a function is_fast with parameter speed
+    return speed > 100 ¦ Return the result of speed > 100
+print(is_fast(120)) ¦ Print is_fast(120)`,
+c:String.raw`
+@#include <stdio.h>
+@
+int is_fast(int speed) { ¦ Define int is_fast(int speed) and open its body
+    return speed > 100; ¦ Return speed > 100
+@}
+@
+@int main() {
+    printf("%d\n", is_fast(120)); ¦ Print is_fast(120) with %d and \n
+@    return 0;
+@}`,
+java:String.raw`
+@public class Main {
+    static boolean isFast(int speed) { ¦ Define static boolean isFast(int speed) and open its body
+        return speed > 100; ¦ Return speed > 100
+@    }
+@
+@    public static void main(String[] args) {
+        System.out.println(isFast(120)); ¦ Print isFast(120)
+@    }
+@}`},
+
+{name:'Fastest Lap', tier:'Medium', goal:'Find the smallest lap time by comparing each one with the best so far.', out:'48',
+py:String.raw`
+laps = [52, 48, 50] ¦ Create the list laps = [52, 48, 50]
+best = laps[0] ¦ Set best to the first lap
+for t in laps: ¦ Loop t over laps
+    if t < best: ¦ Check whether t is less than best
+        best = t ¦ Store t in best
+print(best) ¦ After the loop, print best`,
+c:String.raw`
+int laps[] = {52, 48, 50}; ¦ Declare int laps[] = {52, 48, 50}
+int best = laps[0]; ¦ Declare int best set to laps[0]
+for (int i = 1; i < 3; i++) { ¦ Loop int i from 1 while i < 3, adding 1
+    if (laps[i] < best) { ¦ Open an if block for laps[i] < best
+        best = laps[i]; ¦ Store laps[i] in best
+@    }
+@}
+printf("%d\n", best); ¦ Print best with %d and \n`,
+java:String.raw`
+int[] laps = {52, 48, 50}; ¦ Declare int[] laps = {52, 48, 50}
+int best = laps[0]; ¦ Declare int best set to laps[0]
+for (int t : laps) { ¦ Open a for-each loop: int t over laps
+    if (t < best) { ¦ Open an if block for t < best
+        best = t; ¦ Store t in best
+@    }
+@}
+System.out.println(best); ¦ Print best`},
+
+{name:'Starting Grid', tier:'Medium', goal:'Use nested loops to draw the starting grid as a triangle of stars.', out:'*\n**\n***',
+py:String.raw`
+for row in range(1, 4): ¦ Loop row over range(1, 4)
+    print("*" * row) ¦ Print "*" repeated row times using *`,
+c:String.raw`
+for (int row = 1; row <= 3; row++) { ¦ Loop int row from 1 while row <= 3, adding 1
+    for (int i = 0; i < row; i++) { ¦ Inner loop: int i from 0 while i < row, adding 1
+        printf("*"); ¦ Print one * with printf
+@    }
+    printf("\n"); ¦ After the inner loop, print \n
+@}`,
+java:String.raw`
+for (int row = 1; row <= 3; row++) { ¦ Loop int row from 1 while row <= 3, adding 1
+    for (int i = 0; i < row; i++) { ¦ Inner loop: int i from 0 while i < row, adding 1
+        System.out.print("*"); ¦ Print one * with System.out.print
+@    }
+    System.out.println(); ¦ After the inner loop, end the line with System.out.println()
+@}`},
+
+{name:'Gear Table', tier:'Medium', goal:'Print the 7 times table from 1 to 5 in the format 7 x 1 = 7.', out:'7 x 1 = 7\n7 x 2 = 14\n7 x 3 = 21\n7 x 4 = 28\n7 x 5 = 35',
+py:String.raw`
+for i in range(1, 6): ¦ Loop i over range(1, 6)
+    print(f"7 x {i} = {7 * i}") ¦ Print an f-string: 7 x {i} = {7 * i}`,
+c:String.raw`
+for (int i = 1; i <= 5; i++) { ¦ Loop int i from 1 while i <= 5, adding 1
+    printf("7 x %d = %d\n", i, 7 * i); ¦ printf "7 x %d = %d\n" with i and 7 * i
+@}`,
+java:String.raw`
+for (int i = 1; i <= 5; i++) { ¦ Loop int i from 1 while i <= 5, adding 1
+    System.out.println("7 x " + i + " = " + (7 * i)); ¦ Print "7 x " + i + " = " + (7 * i)
+@}`},
+
+// ─────────────── HARD ───────────────
+{name:'Odometer Digits', tier:'Medium', goal:'Add up the digits of 1234 with a while loop: take the last digit with % 10, then remove it by dividing by 10.', out:'10',
+py:String.raw`
+n = 1234 ¦ Set n to 1234
+total = 0 ¦ Set total to 0
+while n > 0: ¦ Loop while n is greater than 0
+    total += n % 10 ¦ Add the last digit (n % 10) to total
+    n //= 10 ¦ Remove the last digit with n //= 10
+print(total) ¦ After the loop, print total`,
+c:String.raw`
+int n = 1234; ¦ Declare int n = 1234
+int total = 0; ¦ Declare int total = 0
+while (n > 0) { ¦ Open a while loop that runs while n > 0
+    total += n % 10; ¦ Add the last digit (n % 10) to total
+    n /= 10; ¦ Remove the last digit with n /= 10
+@}
+printf("%d\n", total); ¦ Print total with %d and \n`,
+java:String.raw`
+int n = 1234; ¦ Declare int n = 1234
+int total = 0; ¦ Declare int total = 0
+while (n > 0) { ¦ Open a while loop that runs while n > 0
+    total += n % 10; ¦ Add the last digit (n % 10) to total
+    n /= 10; ¦ Remove the last digit with n /= 10
+@}
+System.out.println(total); ¦ Print total`},
+
+{name:'Factorial Engine', tier:'Hard', goal:'Write a factorial function using a loop and compute 5! (5 × 4 × 3 × 2 × 1).', out:'120',
+py:String.raw`
+def factorial(n): ¦ Define a function factorial with parameter n
+    result = 1 ¦ Set result to 1
+    for i in range(2, n + 1): ¦ Loop i over range(2, n + 1)
+        result *= i ¦ Multiply result by i
+    return result ¦ After the loop, return result
+print(factorial(5)) ¦ Print factorial(5)`,
+c:String.raw`
+@#include <stdio.h>
+@
+int factorial(int n) { ¦ Define int factorial(int n) and open its body
+    int result = 1; ¦ Declare int result = 1
+    for (int i = 2; i <= n; i++) { ¦ Loop int i from 2 while i <= n, adding 1
+        result *= i; ¦ Multiply result by i
+@    }
+    return result; ¦ Return result
+@}
+@
+@int main() {
+    printf("%d\n", factorial(5)); ¦ Print factorial(5) with %d and \n
+@    return 0;
+@}`,
+java:String.raw`
+@public class Main {
+    static int factorial(int n) { ¦ Define static int factorial(int n) and open its body
+        int result = 1; ¦ Declare int result = 1
+        for (int i = 2; i <= n; i++) { ¦ Loop int i from 2 while i <= n, adding 1
+            result *= i; ¦ Multiply result by i
+@        }
+        return result; ¦ Return result
+@    }
+@
+@    public static void main(String[] args) {
+        System.out.println(factorial(5)); ¦ Print factorial(5)
+@    }
+@}`},
+
+{name:'Fibonacci Track', tier:'Hard', goal:'Print the first 10 Fibonacci numbers on one line. Each number is the sum of the two before it.', out:'0 1 1 2 3 5 8 13 21 34',
+py:String.raw`
+a, b = 0, 1 ¦ Set a to 0 and b to 1 in one line (a, b = 0, 1)
+for _ in range(10): ¦ Loop _ over range(10)
+    print(a, end=" ") ¦ Print a with end=" " so numbers stay on one line
+    a, b = b, a + b ¦ In one line, set a to b and b to a + b`,
+c:String.raw`
+int a = 0, b = 1; ¦ Declare int a = 0, b = 1 in one statement
+for (int i = 0; i < 10; i++) { ¦ Loop int i from 0 while i < 10, adding 1
+    printf("%d ", a); ¦ Print a with "%d " (a space, no newline)
+    int next = a + b; ¦ Declare int next = a + b
+    a = b; ¦ Set a to b
+    b = next; ¦ Set b to next
+@}`,
+java:String.raw`
+int a = 0, b = 1; ¦ Declare int a = 0, b = 1 in one statement
+for (int i = 0; i < 10; i++) { ¦ Loop int i from 0 while i < 10, adding 1
+    System.out.print(a + " "); ¦ Use System.out.print to print a + " "
+    int next = a + b; ¦ Declare int next = a + b
+    a = b; ¦ Set a to b
+    b = next; ¦ Set b to next
+@}`},
+
+{name:'Mirror Road', tier:'Hard', goal:'Reverse the word ENGINE and print it backwards.', out:'ENIGNE',
+py:String.raw`
+word = "ENGINE" ¦ Set word to "ENGINE"
+reversed_word = word[::-1] ¦ Store word reversed with slicing [::-1] in reversed_word
+print(reversed_word) ¦ Print reversed_word`,
+c:String.raw`
+@#include <stdio.h>
+@#include <string.h>
+@
+@int main() {
+    char word[] = "ENGINE"; ¦ Declare char word[] = "ENGINE"
+    int len = strlen(word); ¦ Declare int len set to strlen(word)
+    for (int i = len - 1; i >= 0; i--) { ¦ Loop int i from len - 1 while i >= 0, subtracting 1
+        printf("%c", word[i]); ¦ Print word[i] with the %c format
+@    }
+    printf("\n"); ¦ Print a newline \n
+@    return 0;
+@}`,
+java:String.raw`
+String word = "ENGINE"; ¦ Declare String word = "ENGINE"
+String reversed = new StringBuilder(word).reverse().toString(); ¦ Store new StringBuilder(word).reverse().toString() in String reversed
+System.out.println(reversed); ¦ Print reversed`},
+
+{name:'Palindrome Plate', tier:'Hard', goal:'Check whether the number plate LEVEL reads the same forwards and backwards.', out:'LEVEL is a palindrome',
+py:String.raw`
+plate = "LEVEL" ¦ Set plate to "LEVEL"
+if plate == plate[::-1]: ¦ Check whether plate equals plate reversed with [::-1]
+    print(plate, "is a palindrome") ¦ Print plate and "is a palindrome"`,
+c:String.raw`
+@#include <stdio.h>
+@#include <string.h>
+@
+@int main() {
+    char plate[] = "LEVEL"; ¦ Declare char plate[] = "LEVEL"
+    int len = strlen(plate); ¦ Declare int len set to strlen(plate)
+    int same = 1; ¦ Declare int same = 1
+    for (int i = 0; i < len / 2; i++) { ¦ Loop int i from 0 while i < len / 2, adding 1
+        if (plate[i] != plate[len - 1 - i]) { ¦ Open an if block for plate[i] != plate[len - 1 - i]
+            same = 0; ¦ Set same to 0
+@        }
+@    }
+    if (same) { ¦ Open an if block that checks same
+        printf("%s is a palindrome\n", plate); ¦ printf "%s is a palindrome\n" with plate
+@    }
+@    return 0;
+@}`,
+java:String.raw`
+String plate = "LEVEL"; ¦ Declare String plate = "LEVEL"
+boolean same = true; ¦ Declare boolean same = true
+for (int i = 0; i < plate.length() / 2; i++) { ¦ Loop int i from 0 while i < plate.length() / 2, adding 1
+    if (plate.charAt(i) != plate.charAt(plate.length() - 1 - i)) { ¦ Open an if block for plate.charAt(i) != plate.charAt(plate.length() - 1 - i)
+        same = false; ¦ Set same to false
+@    }
+@}
+if (same) { ¦ Open an if block that checks same
+    System.out.println(plate + " is a palindrome"); ¦ Print plate + " is a palindrome"
+@}`},
+
+{name:'Prime Checkpoint', tier:'Hard', goal:'Check whether 29 is prime by testing every possible divisor.', out:'29 is prime',
+py:String.raw`
+n = 29 ¦ Set n to 29
+is_prime = True ¦ Set is_prime to True
+for i in range(2, n): ¦ Loop i over range(2, n)
+    if n % i == 0: ¦ Check whether n % i equals 0
+        is_prime = False ¦ Set is_prime to False
+        break ¦ Leave the loop with break
+if is_prime: ¦ After the loop, check is_prime
+    print(n, "is prime") ¦ Print n and "is prime"`,
+c:String.raw`
+int n = 29; ¦ Declare int n = 29
+int isPrime = 1; ¦ Declare int isPrime = 1
+for (int i = 2; i * i <= n; i++) { ¦ Loop int i from 2 while i * i <= n, adding 1
+    if (n % i == 0) { ¦ Open an if block for n % i == 0
+        isPrime = 0; ¦ Set isPrime to 0
+        break; ¦ Leave the loop with break
+@    }
+@}
+if (isPrime) { ¦ Open an if block that checks isPrime
+    printf("%d is prime\n", n); ¦ printf "%d is prime\n" with n
+@}`,
+java:String.raw`
+int n = 29; ¦ Declare int n = 29
+boolean isPrime = true; ¦ Declare boolean isPrime = true
+for (int i = 2; i * i <= n; i++) { ¦ Loop int i from 2 while i * i <= n, adding 1
+    if (n % i == 0) { ¦ Open an if block for n % i == 0
+        isPrime = false; ¦ Set isPrime to false
+        break; ¦ Leave the loop with break
+@    }
+@}
+if (isPrime) { ¦ Open an if block that checks isPrime
+    System.out.println(n + " is prime"); ¦ Print n + " is prime"
+@}`},
+
+{name:'Lost Car Search', tier:'Hard', goal:'Check the car numbers one by one (linear search) and print the position of car 53.', out:'Found at 2',
+py:String.raw`
+cars = [17, 44, 53, 8] ¦ Create the list cars = [17, 44, 53, 8]
+for i in range(len(cars)): ¦ Loop i over range(len(cars))
+    if cars[i] == 53: ¦ Check whether cars[i] equals 53
+        print("Found at", i) ¦ Print "Found at" and i
+        break ¦ Leave the loop with break`,
+c:String.raw`
+int cars[] = {17, 44, 53, 8}; ¦ Declare int cars[] = {17, 44, 53, 8}
+for (int i = 0; i < 4; i++) { ¦ Loop int i from 0 while i < 4, adding 1
+    if (cars[i] == 53) { ¦ Open an if block for cars[i] == 53
+        printf("Found at %d\n", i); ¦ printf "Found at %d\n" with i
+        break; ¦ Leave the loop with break
+@    }
+@}`,
+java:String.raw`
+int[] cars = {17, 44, 53, 8}; ¦ Declare int[] cars = {17, 44, 53, 8}
+for (int i = 0; i < cars.length; i++) { ¦ Loop int i from 0 while i < cars.length, adding 1
+    if (cars[i] == 53) { ¦ Open an if block for cars[i] == 53
+        System.out.println("Found at " + i); ¦ Print "Found at " + i
+        break; ¦ Leave the loop with break
+@    }
+@}`},
+
+{name:'Power Boost', tier:'Hard', goal:'Write a recursive function that raises a number to a power, then work out 2 to the power 10.', out:'1024',
+py:String.raw`
+def power(base, exp): ¦ Define a function power with parameters base and exp
+    if exp == 0: ¦ Check whether exp equals 0
+        return 1 ¦ Return 1
+    return base * power(base, exp - 1) ¦ Return base * power(base, exp - 1)
+print(power(2, 10)) ¦ Print power(2, 10)`,
+c:String.raw`
+@#include <stdio.h>
+@
+int power(int base, int exp) { ¦ Define int power(int base, int exp) and open its body
+    if (exp == 0) { ¦ Open an if block for exp == 0
+        return 1; ¦ Return 1
+@    }
+    return base * power(base, exp - 1); ¦ Return base * power(base, exp - 1)
+@}
+@
+@int main() {
+    printf("%d\n", power(2, 10)); ¦ Print power(2, 10) with %d and \n
+@    return 0;
+@}`,
+java:String.raw`
+@public class Main {
+    static int power(int base, int exp) { ¦ Define static int power(int base, int exp) and open its body
+        if (exp == 0) { ¦ Open an if block for exp == 0
+            return 1; ¦ Return 1
+@        }
+        return base * power(base, exp - 1); ¦ Return base * power(base, exp - 1)
+@    }
+@
+@    public static void main(String[] args) {
+        System.out.println(power(2, 10)); ¦ Print power(2, 10)
+@    }
+@}`},
+
+{name:'Recursive Pit Lane', tier:'Hard', goal:'Find the greatest common divisor of 48 and 18 with a recursive function (Euclid\'s method).', out:'6',
+py:String.raw`
+def gcd(a, b): ¦ Define a function gcd with parameters a and b
+    if b == 0: ¦ Check whether b equals 0
+        return a ¦ Return a
+    return gcd(b, a % b) ¦ Otherwise return gcd(b, a % b)
+print(gcd(48, 18)) ¦ Print gcd(48, 18)`,
+c:String.raw`
+@#include <stdio.h>
+@
+int gcd(int a, int b) { ¦ Define int gcd(int a, int b) and open its body
+    if (b == 0) { ¦ Open an if block for b == 0
+        return a; ¦ Return a
+@    }
+    return gcd(b, a % b); ¦ Return gcd(b, a % b)
+@}
+@
+@int main() {
+    printf("%d\n", gcd(48, 18)); ¦ Print gcd(48, 18) with %d and \n
+@    return 0;
+@}`,
+java:String.raw`
+@public class Main {
+    static int gcd(int a, int b) { ¦ Define static int gcd(int a, int b) and open its body
+        if (b == 0) { ¦ Open an if block for b == 0
+            return a; ¦ Return a
+@        }
+        return gcd(b, a % b); ¦ Return gcd(b, a % b)
+@    }
+@
+@    public static void main(String[] args) {
+        System.out.println(gcd(48, 18)); ¦ Print gcd(48, 18)
+@    }
+@}`},
+
+{name:'Binary Search Bend', tier:'Hard', goal:'Find 48 in a sorted list by halving the search range each step (binary search).', out:'Found at 3',
+py:String.raw`
+times = [12, 25, 37, 48, 59, 63, 71] ¦ Create the sorted list times = [12, 25, 37, 48, 59, 63, 71]
+low, high = 0, len(times) - 1 ¦ In one line, set low to 0 and high to len(times) - 1
+while low <= high: ¦ Loop while low <= high
+    mid = (low + high) // 2 ¦ Set mid to (low + high) // 2
+    if times[mid] == 48: ¦ Check whether times[mid] equals 48
+        print("Found at", mid) ¦ Print "Found at" and mid
+        break ¦ Leave the loop with break
+    elif times[mid] < 48: ¦ Add an elif for times[mid] < 48
+        low = mid + 1 ¦ Set low to mid + 1
+    else: ¦ Start the else branch
+        high = mid - 1 ¦ Set high to mid - 1`,
+c:String.raw`
+int times[] = {12, 25, 37, 48, 59, 63, 71}; ¦ Declare int times[] = {12, 25, 37, 48, 59, 63, 71}
+int low = 0, high = 6; ¦ Declare int low = 0, high = 6 in one statement
+while (low <= high) { ¦ Open a while loop that runs while low <= high
+    int mid = (low + high) / 2; ¦ Declare int mid = (low + high) / 2
+    if (times[mid] == 48) { ¦ Open an if block for times[mid] == 48
+        printf("Found at %d\n", mid); ¦ printf "Found at %d\n" with mid
+        break; ¦ Leave the loop with break
+    } else if (times[mid] < 48) { ¦ Close the block and open else if (times[mid] < 48)
+        low = mid + 1; ¦ Set low to mid + 1
+    } else { ¦ Close the block and open an else block
+        high = mid - 1; ¦ Set high to mid - 1
+@    }
+@}`,
+java:String.raw`
+int[] times = {12, 25, 37, 48, 59, 63, 71}; ¦ Declare int[] times = {12, 25, 37, 48, 59, 63, 71}
+int low = 0, high = times.length - 1; ¦ Declare int low = 0, high = times.length - 1 in one statement
+while (low <= high) { ¦ Open a while loop that runs while low <= high
+    int mid = (low + high) / 2; ¦ Declare int mid = (low + high) / 2
+    if (times[mid] == 48) { ¦ Open an if block for times[mid] == 48
+        System.out.println("Found at " + mid); ¦ Print "Found at " + mid
+        break; ¦ Leave the loop with break
+    } else if (times[mid] < 48) { ¦ Close the block and open else if (times[mid] < 48)
+        low = mid + 1; ¦ Set low to mid + 1
+    } else { ¦ Close the block and open an else block
+        high = mid - 1; ¦ Set high to mid - 1
+@    }
+@}`},
+
+{name:'Grand Prix Sort', tier:'Hard', goal:'Sort the finishing times from fastest to slowest with bubble sort: swap neighbours that are out of order.', out:{py:'[47, 48, 50, 53]', c:'47 48 50 53', java:'47 48 50 53'},
+py:String.raw`
+times = [50, 48, 53, 47] ¦ Create the list times = [50, 48, 53, 47]
+n = len(times) ¦ Store len(times) in n
+for i in range(n): ¦ Loop i over range(n)
+    for j in range(n - 1 - i): ¦ Loop j over range(n - 1 - i)
+        if times[j] > times[j + 1]: ¦ Check whether times[j] > times[j + 1]
+            times[j], times[j + 1] = times[j + 1], times[j] ¦ Swap times[j] and times[j + 1] in one line
+print(times) ¦ After the loops, print times`,
+c:String.raw`
+int times[] = {50, 48, 53, 47}; ¦ Declare int times[] = {50, 48, 53, 47}
+int n = 4; ¦ Declare int n = 4
+for (int i = 0; i < n - 1; i++) { ¦ Loop int i from 0 while i < n - 1, adding 1
+    for (int j = 0; j < n - 1 - i; j++) { ¦ Loop int j from 0 while j < n - 1 - i, adding 1
+        if (times[j] > times[j + 1]) { ¦ Open an if block for times[j] > times[j + 1]
+            int tmp = times[j]; ¦ Declare int tmp = times[j]
+            times[j] = times[j + 1]; ¦ Set times[j] to times[j + 1]
+            times[j + 1] = tmp; ¦ Set times[j + 1] to tmp
+@        }
+@    }
+@}
+for (int i = 0; i < n; i++) { ¦ Loop int i from 0 while i < n, adding 1
+    printf("%d ", times[i]); ¦ Print times[i] with "%d "
+@}`,
+java:String.raw`
+int[] times = {50, 48, 53, 47}; ¦ Declare int[] times = {50, 48, 53, 47}
+int n = times.length; ¦ Declare int n = times.length
+for (int i = 0; i < n - 1; i++) { ¦ Loop int i from 0 while i < n - 1, adding 1
+    for (int j = 0; j < n - 1 - i; j++) { ¦ Loop int j from 0 while j < n - 1 - i, adding 1
+        if (times[j] > times[j + 1]) { ¦ Open an if block for times[j] > times[j + 1]
+            int tmp = times[j]; ¦ Declare int tmp = times[j]
+            times[j] = times[j + 1]; ¦ Set times[j] to times[j + 1]
+            times[j + 1] = tmp; ¦ Set times[j + 1] to tmp
+@        }
+@    }
+@}
+for (int t : times) { ¦ Open a for-each loop: int t over times
+    System.out.print(t + " "); ¦ Use System.out.print to print t + " "
+@}`},
+];
+
+const LANGS = {
+  py:  {label:'Python', file:'main.py',   run:'$ python3 main.py'},
+  c:   {label:'C',      file:'main.c',    run:'$ gcc main.c -o race && ./race'},
+  java:{label:'Java',   file:'Main.java', run:'$ javac Main.java && java Main'},
+};
+
+/* ---------------- program building ---------------- */
+function indentLine(l, n){
+  const pad = ' '.repeat(n);
+  if (l.startsWith('@')) return l.length > 1 ? '@' + pad + l.slice(1) : '@';
+  return pad + l;
+}
+function parseLine(raw){
+  if (raw.startsWith('@')) return {given:true, code:raw.slice(1)};
+  const k = raw.indexOf(' ¦ ');
+  const code = k < 0 ? raw : raw.slice(0, k);
+  return {given:false, code, ind:code.match(/^ */)[0], expect:code.trim(), prompt:k < 0 ? 'Type this line' : raw.slice(k + 3).trim()};
+}
+function buildProgram(level, lang){
+  let rows = level[lang].replace(/^\n+|\s+$/g, '').split('\n');
+  if (lang === 'c' && !rows.some(r => r.includes('#include')))
+    rows = ['@#include <stdio.h>', '@', '@int main() {', ...rows.map(r => indentLine(r, 4)), '@    return 0;', '@}'];
+  if (lang === 'java' && !rows.some(r => r.includes('class Main')))
+    rows = ['@public class Main {', '@    public static void main(String[] args) {', ...rows.map(r => indentLine(r, 8)), '@    }', '@}'];
+  return rows.map(parseLine);
+}
+const outputFor = (lvl, lang) => typeof lvl.out === 'string' ? lvl.out : lvl.out[lang];
+
+/* ---------------- code checking ---------------- */
+function lex(src, lang){
+  const parts = []; let buf = '', i = 0, open = false;
+  const flush = () => { if (buf) { parts.push({s:'code', v:buf}); buf = ''; } };
+  while (i < src.length){
+    const ch = src[i];
+    if (ch === '"' || ch === "'"){
+      flush();
+      let j = i + 1, v = '', closed = false;
+      while (j < src.length){
+        if (src[j] === '\\'){ v += src.slice(j, j + 2); j += 2; continue; }
+        if (src[j] === ch){ closed = true; break; }
+        v += src[j]; j++;
+      }
+      parts.push({s:'str', q:ch, v, closed});
+      if (!closed) open = true;
+      i = closed ? j + 1 : src.length;
+      continue;
+    }
+    if (lang === 'py' && ch === '#') break;
+    if (lang !== 'py' && ch === '/' && src[i + 1] === '/') break;
+    buf += ch; i++;
+  }
+  flush();
+  return {parts, open};
+}
+const PUNCT = /\s*([=+\-*\/%<>!&|,;:(){}\[\].^~?])\s*/g;
+function balancedInner(s){ let d = 0; for (const c of s){ if (c === '(') d++; if (c === ')' && --d < 0) return false; } return d === 0; }
+function normalize(src, lang){
+  const {parts} = lex(src.trim(), lang);
+  let out = '';
+  parts.forEach((p, idx) => {
+    if (p.s === 'code') { out += p.v.replace(/\s+/g, ' ').replace(PUNCT, '$1'); return; }
+    let v = p.v; const prev = parts[idx - 1];
+    if (lang === 'py' && prev && prev.s === 'code' && /[fF]$/.test(prev.v))
+      v = v.replace(/\{([^}]*)\}/g, (m, x) => '{' + x.replace(/\s+/g, '') + '}');
+    const q = lang === 'py' ? '"' : p.q;
+    out += q + v + (p.closed ? q : '');
+  });
+  out = out.trim();
+  // x = x + y  →  x += y
+  out = out.replace(/(^|[;({,\s])([A-Za-z_]\w*)=\2([+\-*\/%])(?!=)/g, '$1$2$3=');
+  if (lang === 'py'){
+    out = out.replace(/;+$/, '');
+    const m = out.match(/^(if|elif|while)\((.*)\):$/);
+    if (m && balancedInner(m[2])) out = m[1] + ' ' + m[2] + ':';
+  } else {
+    out = out.replace(/([A-Za-z_]\w*(?:\[[^\]]*\])?)\+=1(?![\w.])/g, '$1++')
+             .replace(/([A-Za-z_]\w*(?:\[[^\]]*\])?)-=1(?![\w.])/g, '$1--')
+             .replace(/\+\+([A-Za-z_]\w*)/g, '$1++')
+             .replace(/--([A-Za-z_]\w*)/g, '$1--');
+  }
+  return out;
+}
+function info(src, lang){
+  const lx = lex(src.trim(), lang);
+  const code = lx.parts.filter(p => p.s === 'code').map(p => p.v).join(' ');
+  const cnt = {'(':0, ')':0, '[':0, ']':0, '{':0, '}':0};
+  for (const ch of code) if (ch in cnt) cnt[ch]++;
+  return {lx, code, cnt,
+    ids: code.match(/[A-Za-z_]\w*/g) || [],
+    nums: code.match(/\b\d+(?:\.\d+)?\b/g) || [],
+    strs: lx.parts.filter(p => p.s === 'str')};
+}
+function lev(a, b){
+  const d = Array.from({length:a.length + 1}, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+const PAIR = {'(':')', '[':']', '{':'}', ')':'(', ']':'[', '}':'{'};
+const MSG = {
+  py:{
+    str:   () => 'SyntaxError: unterminated string literal',
+    missing: ch => ')]}'.includes(ch) ? `SyntaxError: '${PAIR[ch]}' was never closed` : `SyntaxError: invalid syntax (missing '${ch}')`,
+    extra:   ch => ')]}'.includes(ch) ? `SyntaxError: unmatched '${ch}'` : `SyntaxError: '${ch}' was never closed`,
+    end:   () => "SyntaxError: expected ':'",
+    name: (n, fn) => `NameError: name '${n}' is not defined`,
+    quote: () => '',
+    generic: t => `SyntaxError: invalid syntax near '${t}'`},
+  c:{
+    str:   () => 'error: missing terminating " character',
+    missing: ch => `error: expected '${ch}'`,
+    extra:   ch => `error: expected expression before '${ch}' token`,
+    end:   () => "error: expected ';' at end of statement",
+    name: (n, fn) => fn ? `error: implicit declaration of function '${n}'` : `error: '${n}' undeclared (first use in this function)`,
+    quote: () => 'error: multi-character character constant. Strings need double quotes " "',
+    generic: t => `error: expected expression before '${t}'`},
+  java:{
+    str:   () => 'error: unclosed string literal',
+    missing: ch => `error: '${ch}' expected`,
+    extra:   ch => `error: illegal start of expression at '${ch}'`,
+    end:   () => "error: ';' expected",
+    name: (n, fn) => `error: cannot find symbol\n  symbol: ${fn ? 'method' : 'variable'} ${n}`,
+    quote: () => 'error: unclosed character literal. Strings need double quotes " "',
+    generic: t => `error: illegal start of expression near '${t}'`},
+};
+const toks = s => s.match(/"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?|[A-Za-z_]\w*|\d+|\+\+|--|[<>=!+\-*\/%]=|&&|\|\||\S/g) || [];
+
+function diagnose(typed, expect, lang){
+  const M = MSG[lang];
+  const tn = normalize(typed, lang), en = normalize(expect, lang);
+  if (tn === en) return {ok:true};
+  const bad = (kind, msg) => ({ok:false, kind, msg});
+  const T = info(typed, lang), E = info(expect, lang);
+
+  if (T.lx.open) return bad('syntax', M.str());
+  if (lang === 'py' && /^print\s+[^(\s=]/.test(typed.trim()))
+    return bad('syntax', "SyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?");
+  for (const ch of '([{)]}'){
+    if (T.cnt[ch] < E.cnt[ch]) return bad('syntax', M.missing(ch));
+    if (T.cnt[ch] > E.cnt[ch]) return bad('syntax', M.extra(ch));
+  }
+  if (lang === 'py' && en.endsWith(':') && !tn.endsWith(':')) return bad('syntax', M.end());
+  if (lang !== 'py' && en.endsWith(';') && !tn.endsWith(';')) return bad('syntax', M.end());
+
+  const known = [...new Set(E.ids)];
+  for (const n of T.ids){
+    if (known.includes(n)) continue;
+    const fn = new RegExp('\\b' + n + '\\s*\\(').test(T.code);
+    const near = known.find(e => e.toLowerCase() === n.toLowerCase())
+              || known.find(e => e.length > 2 && lev(e, n) <= 2);
+    const tip = near ? (near.toLowerCase() === n.toLowerCase()
+      ? `\n  tip: names are case-sensitive. Did you mean '${near}'?`
+      : `\n  tip: did you mean '${near}'?`) : '';
+    return bad('name', M.name(n, fn) + tip);
+  }
+
+  if (lang !== 'py' && T.strs.some((s, i) => E.strs[i] && s.q !== E.strs[i].q)) return bad('syntax', M.quote());
+  const ts = T.strs.map(s => s.v), es = E.strs.map(s => s.v);
+  if (ts.join('\u0000') !== es.join('\u0000')){
+    const i = Math.max(0, ts.findIndex((s, k) => s !== es[k]));
+    const got = ts[i] === undefined ? 'nothing' : `"${ts[i]}"`;
+    const want = es[i] === undefined ? 'no text here' : `"${es[i]}"`;
+    return bad('output', `Runtime check failed: this line uses ${got}, the track needs ${want}`);
+  }
+  if (T.nums.join() !== E.nums.join()){
+    const i = Math.max(0, T.nums.findIndex((x, k) => x !== E.nums[k]));
+    const got = T.nums[i] ?? (T.nums.length < E.nums.length ? 'a missing number' : 'an extra number');
+    return bad('logic', `Logic error: ${got === T.nums[i] ? 'the value ' + got : got} sends the car the wrong way. Re-read the numbers in the task.`);
+  }
+  const tt = toks(tn), et = toks(en);
+  let i = 0; while (i < tt.length && tt[i] === et[i]) i++;
+  return bad('syntax', M.generic(tt[i] ?? 'end of line'));
+}
+const KIND_LABEL = {syntax:'SYNTAX ERROR', name:'UNKNOWN NAME', output:'WRONG OUTPUT', logic:'WRONG VALUE', compile:'COMPILE ERROR', runtime:'RUNTIME ERROR'};
+
+/* ---------------- real execution (Wandbox) ---------------- */
+const RUNNERS = {
+  py:  {compiler:'cpython-3.13.8',    name:'Python 3.13', src:'prog.py',   file:'main.py'},
+  c:   {compiler:'gcc-13.2.0-c',      name:'gcc 13.2',    src:'prog.c',    file:'main.c'},
+  java:{compiler:'openjdk-jdk-22+36', name:'OpenJDK 22',  src:'prog.java', file:'Main.java'},
+};
+let runnerState = 'unknown';
+function setRunner(s){ runnerState = s; renderRunner(); }
+async function runReal(lang, code){
+  const R = RUNNERS[lang];
+  // Wandbox names the file prog.java, so a public class Main would not compile; line numbers stay the same.
+  const body = {compiler:R.compiler, code: lang === 'java' ? code.replace(/public\s+class\s+Main\b/, 'class Main') : code};
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 35000);
+  try {
+    const r = await fetch('https://wandbox.org/api/compile.json', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:ctl.signal});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    // Wandbox's own sandbox failing (overloaded) is not the player's bug.
+    if (/OCI runtime error|Resource temporarily unavailable/i.test((d.compiler_error || '') + (d.program_error || ''))) throw new Error('runner busy');
+    setRunner('online');
+    const fix = s => (s || '').split(R.src).join(R.file).replace(/^\s*class Main/m, 'public class Main');
+    return {failed: String(d.status) !== '0' || !!d.signal, compileErr: fix(d.compiler_error), stdout: d.program_output || '', stderr: fix(d.program_error)};
+  } catch (e) {
+    setRunner('offline');
+    return null;
+  } finally { clearTimeout(timer); }
+}
+function programText(over = {}){
+  return state.lines.map((l, i) => l.given ? l.code : l.ind + (over[i] ?? state.entered[i] ?? l.expect)).join('\n');
+}
+const cleanOut = s => s.replace(/\r/g, '').split('\n').map(x => x.replace(/\s+$/, '')).join('\n').replace(/\n+$/, '');
+function excerpt(txt, lang){
+  const rows = txt.replace(/\s+$/, '').split('\n').filter(r => r.trim());
+  if (lang === 'py') return rows.slice(-6).join('\n');
+  const k = rows.findIndex(r => /error/i.test(r));
+  return rows.slice(Math.max(0, k), Math.max(0, k) + 6).join('\n');
+}
+function errorLine(txt){
+  const m = txt.match(/(?:main\.c|Main\.java):(\d+)/) || txt.match(/line (\d+)/);
+  return m ? +m[1] : null;
+}
+
+/* ---------------- saved progress ---------------- */
+const KEY = 'code-racer-v2';
+function loadSave(){ try { return JSON.parse(localStorage.getItem(KEY)) || {stars:{}}; } catch { return {stars:{}}; } }
+function writeSave(){ try { localStorage.setItem(KEY, JSON.stringify(save)); } catch {} }
+const save = loadSave(); save.stars = save.stars || {};
+
+/* ---------------- game state ---------------- */
+const $ = s => document.querySelector(s);
+const input = $('#codeInput');
+const state = {lang:'py', level:0, lines:[], typed:[], step:0, lives:3, crashes:0, hints:0, hinted:new Set(), entered:{}, crashedLine:-1, t0:0, tEnd:0, status:'play'};
+const car = {x:0, target:0, wheel:0};
+let crash = null, particles = [], log = [], busy = false, token = 0;
+let realOn = save.real !== false;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function loadLevel(idx, lang = state.lang, focus = false){
+  token++; busy = false;
+  Object.assign(state, {level:idx, lang, lines:buildProgram(LEVELS[idx], lang), step:0, lives:3, crashes:0, hints:0,
+    hinted:new Set(), entered:{}, crashedLine:-1, t0:performance.now(), tEnd:0, status:'play'});
+  state.typed = state.lines.map((l, i) => l.given ? -1 : i).filter(i => i >= 0);
+  car.x = car.target = 0; crash = null; particles = [];
+  $('#modal').hidden = true;
+  input.value = ''; setBusy(false);
+  $('#hintBox').hidden = true;
+  log = [{k:'sys', t:`${LANGS[lang].run}   # track ${idx + 1}: ${LEVELS[idx].name}`}];
+  save.last = {lang, level:idx}; writeSave();
+  renderAll();
+  if (focus) input.focus({preventScroll:true});
+}
+
+function setBusy(on){
+  busy = on;
+  input.disabled = on || state.status !== 'play';
+  $('#runBtn').disabled = input.disabled;
+  $('#runBtn').textContent = on ? 'Compiling…' : 'Run line';
+}
+
+async function submit(){
+  if (state.status !== 'play' || crash || busy) return;
+  const val = input.value, typed = val.trim();
+  if (!typed){ const p = $('#promptBox'); p.classList.remove('shake'); void p.offsetWidth; p.classList.add('shake'); return; }
+  const li = state.typed[state.step], line = state.lines[li];
+  const d = diagnose(val, line.expect, state.lang);
+  if (d.ok) return pass(li, typed, false);
+
+  if (realOn){
+    const my = token, R = RUNNERS[state.lang];
+    setBusy(true);
+    log.push({k:'sys', t:`… line ${li + 1} is different from the track's version. Compiling the whole program with ${R.name}…`});
+    renderAll();
+    const res = await runReal(state.lang, programText({[li]:typed}));
+    if (my !== token) return;              // track changed while compiling
+    log.pop(); setBusy(false);
+    if (res){
+      const want = outputFor(LEVELS[state.level], state.lang);
+      if (!res.failed && cleanOut(res.stdout) === cleanOut(want)) return pass(li, typed, true);
+      if (res.failed){
+        const txt = res.compileErr || res.stderr || 'The program stopped with an error.';
+        const at = errorLine(txt);
+        const tip = at && at !== li + 1 ? `\ntip: the error is on line ${at}, which uses the names from the task. Keep those names in your line.` : '';
+        return crashWith(li, typed, res.compileErr ? 'compile' : 'runtime', `[real ${R.name}]\n` + excerpt(txt, state.lang) + tip);
+      }
+      return crashWith(li, typed, 'output', `[real ${R.name}] The program ran, but printed:\n${cleanOut(res.stdout) || '(nothing)'}\nThe track needs:\n${want}`);
+    }
+    d.msg += '\n(the real compiler is busy or unreachable right now, so the built-in checker was used)';
+  }
+  crashWith(li, typed, d.kind, d.msg);
+}
+function pass(li, typed, real){
+  state.entered[li] = typed; state.crashedLine = -1;
+  log.push({k:'ok', t:`✓ line ${li + 1} compiled${real ? ' (your own version, checked by the real compiler)' : ''}   ${typed}`});
+  state.step++; car.target = state.step;
+  input.value = ''; $('#hintBox').hidden = true;
+  if (state.step === state.typed.length){ state.status = 'finishing'; state.tEnd = performance.now(); }
+  setBusy(false);
+  renderAll();
+  if (state.status === 'play') input.focus({preventScroll:true});
+}
+function crashWith(li, typed, kind, msg){
+  state.lives--; state.crashes++; state.crashedLine = li;
+  log.push({k:'err', t:`✗ CRASH on line ${li + 1}: ${KIND_LABEL[kind]}\n  ${typed}\n  ${msg.replace(/\n/g, '\n  ')}`});
+  crash = {t:0, kind, sparked:false};
+  if (state.lives <= 0) state.status = 'out';
+  setBusy(false);
+  renderAll();
+  if (state.status === 'play') input.focus({preventScroll:true});
+}
+
+function starsFor(){ const pen = state.crashes + state.hints; return pen === 0 ? 3 : pen <= 2 ? 2 : 1; }
+const starText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+const fmtTime = ms => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+
+function finish(){
+  state.status = 'done';
+  const s = starsFor(), key = state.lang + ':' + state.level;
+  save.stars[key] = Math.max(save.stars[key] || 0, s); writeSave();
+  const out = outputFor(LEVELS[state.level], state.lang);
+  renderAll();
+  if (!reduce) confetti();
+  const last = state.level === LEVELS.length - 1, R = RUNNERS[state.lang];
+  openModal({
+    fail:false, tag:`${LEVELS[state.level].tier} · Track ${state.level + 1} · ${LANGS[state.lang].label}`,
+    title:'Finish line', stars:starText(s) + `  ${s} of 3`,
+    body:`Time ${fmtTime(state.tEnd - state.t0)}. Crashes: ${state.crashes}. Answers revealed: ${state.hints}.` +
+         (realOn ? `\nRunning your program with ${R.name}…` : '\nExpected output:'),
+    out: realOn ? '…' : out, primary: last ? 'Play again' : `Next: ${LEVELS[state.level + 1].name}`,
+    onPrimary: () => loadLevel(last ? state.level : state.level + 1, state.lang, true),
+    secondary:'Replay this track', onSecondary: () => loadLevel(state.level, state.lang, true)});
+  if (!realOn){ log.push({k:'out', t:'Expected output:\n' + out}); renderAll(); return; }
+  const my = token;
+  runReal(state.lang, programText()).then(res => {
+    if (my !== token) return;
+    const base = `Time ${fmtTime(state.tEnd - state.t0)}. Crashes: ${state.crashes}. Answers revealed: ${state.hints}.`;
+    if (res && !res.failed){
+      $('#mBody').textContent = `${base}\nYour program's real output from ${R.name}:`;
+      $('#mOut').textContent = cleanOut(res.stdout) || '(no output)';
+      log.push({k:'out', t:`Real output (${R.name}):\n` + (cleanOut(res.stdout) || '(no output)')});
+    } else {
+      $('#mBody').textContent = `${base}\nThe real compiler could not be reached. Expected output:`;
+      $('#mOut').textContent = out;
+      log.push({k:'out', t:'Expected output:\n' + out});
+    }
+    renderAll();
+  });
+}
+function showOut(){
+  state.status = 'over';
+  openModal({fail:true, tag:`Track ${state.level + 1} · ${LEVELS[state.level].name}`, title:'Out of cars',
+    stars:'', body:'You crashed 3 cars on this track. Read the console for each error, then try again. "Show answer" reveals the next line if you are stuck.',
+    out:null, primary:'Try again', onPrimary:() => loadLevel(state.level, state.lang, true),
+    secondary:'Close', onSecondary:() => { $('#modal').hidden = true; }});
+}
+function openModal(o){
+  $('#card').classList.toggle('fail', o.fail);
+  $('#mTag').textContent = o.tag; $('#mTitle').textContent = o.title;
+  $('#mStars').textContent = o.stars; $('#mStars').hidden = !o.stars;
+  $('#mBody').textContent = o.body;
+  $('#mOut').hidden = !o.out; if (o.out) $('#mOut').textContent = o.out;
+  $('#mPrimary').textContent = o.primary; $('#mPrimary').onclick = o.onPrimary;
+  $('#mSecondary').textContent = o.secondary; $('#mSecondary').onclick = o.onSecondary;
+  $('#modal').hidden = false; $('#mPrimary').focus();
+}
+
+/* ---------------- rendering (DOM) ---------------- */
+function renderAll(){
+  const lvl = LEVELS[state.level], L = LANGS[state.lang], n = state.typed.length;
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === state.lang));
+  $('#lvlTag').textContent = `${lvl.tier} · Track ${state.level + 1} of ${LEVELS.length}`;
+  $('#lvlName').textContent = lvl.name;
+  $('#lives').textContent = Array.from({length:3}, (_, i) => i < state.lives ? '♥' : '♡').join(' ');
+  $('#stepCount').textContent = `${state.step}/${n}`;
+  $('#crashCount').textContent = state.crashes;
+  $('#fileName').textContent = $('#editorFile').textContent = L.file;
+  $('#langLabel').textContent = L.label;
+  $('#goal').textContent = lvl.goal;
+
+  const li = state.typed[state.step];
+  if (li !== undefined){
+    $('#promptTag').textContent = `Line ${li + 1} · step ${state.step + 1} of ${n}`;
+    $('#promptText').textContent = state.lines[li].prompt;
+  } else {
+    $('#promptTag').textContent = 'All lines compiled';
+    $('#promptText').textContent = 'Program complete. Crossing the finish line.';
+  }
+
+  const code = $('#code'); code.textContent = '';
+  let curEl = null;
+  state.lines.forEach((l, i) => {
+    const row = document.createElement('div'); row.className = 'ln';
+    let mark = '', text;
+    if (l.given){ row.classList.add('given'); text = l.code; }
+    else if (state.entered[i] !== undefined){ mark = '✓'; text = l.ind + state.entered[i]; }
+    else if (i === li){ mark = state.crashedLine === i ? '✗' : '▶'; row.classList.add(state.crashedLine === i ? 'crashed' : 'cur'); text = l.ind + (input.value.trim() || '_'); curEl = row; }
+    else text = l.ind + '· · ·';
+    const no = document.createElement('span'); no.className = 'no'; no.textContent = i + 1;
+    const mk = document.createElement('span'); mk.className = 'mk'; mk.textContent = mark;
+    const cd = document.createElement('span'); cd.className = 'cd'; cd.textContent = text || ' ';
+    row.append(no, mk, cd); code.append(row);
+  });
+  if (curEl){ const ed = $('#editor'); ed.scrollTop = Math.max(0, curEl.offsetTop - ed.clientHeight / 2); }
+
+  const con = $('#console'); con.textContent = '';
+  log.forEach(e => { const d = document.createElement('div'); d.className = e.k; d.textContent = e.t; con.append(d); });
+  con.scrollTop = con.scrollHeight;
+
+  renderLevels();
+  renderRunner();
+}
+function renderRunner(){
+  const R = RUNNERS[state.lang];
+  $('#runner').textContent = !realOn ? 'built-in checker'
+    : busy ? `${R.name} · compiling…`
+    : runnerState === 'offline' ? `${R.name} · offline` : R.name;
+  const b = $('#realBtn');
+  b.setAttribute('aria-pressed', realOn);
+  b.textContent = `Real compiler: ${realOn ? 'On' : 'Off'}`;
+}
+function renderLevels(){
+  const box = $('#levels'); box.textContent = '';
+  let total = 0;
+  ['Easy', 'Medium', 'Hard'].forEach(tier => {
+    const g = document.createElement('div'); g.className = 'tier';
+    const idxs = LEVELS.map((l, i) => l.tier === tier ? i : -1).filter(i => i >= 0);
+    const h = document.createElement('h4'); h.textContent = `${tier} · tracks ${idxs[0] + 1}–${idxs[idxs.length - 1] + 1}`; g.append(h);
+    idxs.forEach(i => {
+      const st = save.stars[state.lang + ':' + i] || 0; total += st;
+      const b = document.createElement('button'); b.className = 'lvl'; b.type = 'button';
+      if (i === state.level) b.setAttribute('aria-current', 'true');
+      b.innerHTML = `<span class="n">${String(i + 1).padStart(2, '0')}</span><span></span><span class="s"></span>`;
+      b.children[1].textContent = (i === state.level ? '▶ ' : '') + LEVELS[i].name;
+      b.children[2].textContent = st ? starText(st) : '—';
+      b.setAttribute('aria-label', `Track ${i + 1}, ${LEVELS[i].name}, ${st} stars`);
+      b.onclick = () => { loadLevel(i, state.lang, true); window.scrollTo({top:0, behavior: reduce ? 'auto' : 'smooth'}); };
+      g.append(b);
+    });
+    box.append(g);
+  });
+  $('#progress').textContent = `${total} / ${LEVELS.length * 3} stars in ${LANGS[state.lang].label}`;
+}
+
+/* ---------------- canvas: the road ---------------- */
+const cv = $('#road'), ctx = cv.getContext('2d');
+let W = 0, H = 0;
+const SKY = Array.from({length:70}, () => ({x:Math.random(), y:Math.random() * 0.45, r:Math.random() * 1.3 + 0.3}));
+const C = {sky1:'#05080C', sky2:'#101923', hillFar:'#141E29', hillNear:'#1A2733', verge:'#0B1117', road:'#222B35',
+           white:'#FFFFFF', car:'#FF9F35', carDark:'#0A0E13', glass:'#0F151C', azure:'#3FA7FF', cyan:'#26D7C8', gold:'#F5D33B', steel:'#4A6076'};
+const FONT_DISP = '"Avenir Next Condensed","HelveticaNeue-CondensedBold","Arial Narrow",system-ui,sans-serif';
+const FONT_MONO = 'ui-monospace,"SF Mono",Menlo,Consolas,monospace';
+
+function resize(){
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(resize).observe(cv);
+const unit = () => Math.max(150, W * 0.3);
+const ease = t => 1 - Math.pow(1 - t, 3);
+
+function spawn(p){ particles.push(Object.assign({life:0, rot:0, vr:0}, p)); }
+function confetti(){
+  const fx = state.typed.length * unit();
+  const cols = [C.gold, C.azure, C.cyan, C.white, C.car];
+  for (let i = 0; i < 80; i++) spawn({type:'conf', x:fx + (Math.random() - .5) * 120, y:H * 0.2, vx:(Math.random() - .5) * 260, vy:-Math.random() * 260 - 60,
+    max:2.2, size:4 + Math.random() * 4, c:cols[i % cols.length], vr:(Math.random() - .5) * 12});
+}
+
+function drawCar(x, y, rot, wheel){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(0, 15, 52, 6, 0, 0, Math.PI * 2); ctx.fill();
+  // body
+  ctx.fillStyle = C.car;
+  ctx.beginPath(); ctx.roundRect(-50, -16, 100, 22, [10, 14, 6, 6]); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-30, -16); ctx.lineTo(-16, -32); ctx.lineTo(14, -32); ctx.lineTo(32, -16); ctx.closePath(); ctx.fill();
+  // spoiler
+  ctx.fillRect(-52, -24, 12, 4); ctx.fillRect(-46, -22, 3, 8);
+  // windows
+  ctx.fillStyle = C.glass;
+  ctx.beginPath(); ctx.moveTo(-24, -17); ctx.lineTo(-14, -28); ctx.lineTo(-2, -28); ctx.lineTo(-2, -17); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(2, -17); ctx.lineTo(2, -28); ctx.lineTo(12, -28); ctx.lineTo(26, -17); ctx.closePath(); ctx.fill();
+  // racing stripe + number
+  ctx.fillStyle = C.carDark; ctx.fillRect(-50, -8, 100, 4);
+  ctx.fillStyle = C.white; ctx.beginPath(); ctx.arc(-2, -2, 7.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = C.carDark; ctx.font = `bold 10px ${FONT_MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(state.level + 1), -2, -1.5);
+  // lights
+  ctx.fillStyle = C.white; ctx.fillRect(44, -12, 6, 4);
+  ctx.fillStyle = C.steel; ctx.fillRect(-50, -12, 4, 4);
+  // wheels
+  for (const wx of [-30, 30]){
+    ctx.save(); ctx.translate(wx, 6);
+    ctx.fillStyle = '#05070A'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = C.white; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.rotate(wheel);
+    ctx.beginPath(); for (let k = 0; k < 3; k++){ const a = k * Math.PI * 2 / 3; ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 6, Math.sin(a) * 6); } ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function draw(moving){
+  const U = unit(), N = state.typed.length;
+  const roadTop = H * 0.58, roadBot = H * 0.95, carY = roadTop + (roadBot - roadTop) * 0.55;
+  let lunge = 0, rot = 0, shake = 0;
+  if (crash){
+    const c = crash.t;
+    if (reduce){ /* no motion */ }
+    else if (c < 0.22) lunge = ease(c / 0.22) * 0.28;
+    else {
+      const k = Math.max(0, 1 - (c - 0.22) / 0.75);
+      lunge = 0.28 * k; rot = Math.sin((c - 0.22) * 22) * 0.2 * k; shake = 8 * k;
+      if (!crash.sparked){
+        crash.sparked = true;
+        const bx = (car.x + 0.28) * U + 52;
+        for (let i = 0; i < 26; i++) spawn({type:'spark', x:bx, y:carY - 10, vx:(Math.random() - .3) * 320, vy:-Math.random() * 240, max:0.6 + Math.random() * .4, size:2, c:i % 2 ? C.gold : C.white});
+        for (let i = 0; i < 12; i++) spawn({type:'smoke', x:bx - 10, y:carY - 14, vx:(Math.random() - .5) * 40, vy:-20 - Math.random() * 30, max:1.4, size:8 + Math.random() * 8});
+      }
+    }
+  }
+  const camX = car.x * U - W * 0.3;
+  ctx.save();
+  ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+
+  // sky
+  const g = ctx.createLinearGradient(0, 0, 0, roadTop);
+  g.addColorStop(0, C.sky1); g.addColorStop(1, C.sky2);
+  ctx.fillStyle = g; ctx.fillRect(-10, -10, W + 20, roadTop + 10);
+  ctx.fillStyle = C.white;
+  for (const s of SKY){ const x = ((s.x * W - camX * 0.03) % W + W) % W; ctx.globalAlpha = 0.5; ctx.fillRect(x, s.y * H, s.r, s.r); }
+  ctx.globalAlpha = 1;
+  // hills
+  const hill = (par, base, amp, f, col) => {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-10, roadTop);
+    for (let x = -10; x <= W + 10; x += 8){ const wx = x + camX * par; ctx.lineTo(x, base - Math.sin(wx * f) * amp - Math.sin(wx * f * 2.7 + 1.3) * amp * 0.45); }
+    ctx.lineTo(W + 10, roadTop); ctx.fill();
+  };
+  hill(0.15, roadTop - H * 0.16, H * 0.07, 0.006, C.hillFar);
+  hill(0.4, roadTop - H * 0.05, H * 0.05, 0.011, C.hillNear);
+  // verge + road
+  ctx.fillStyle = C.verge; ctx.fillRect(-10, roadTop - 6, W + 20, H - roadTop + 16);
+  ctx.fillStyle = C.road; ctx.fillRect(-10, roadTop, W + 20, roadBot - roadTop);
+  ctx.fillStyle = C.white; ctx.fillRect(-10, roadTop, W + 20, 2); ctx.fillRect(-10, roadBot - 2, W + 20, 2);
+  // lane dashes
+  const dashY = roadTop + (roadBot - roadTop) * 0.24;
+  ctx.globalAlpha = .75;
+  for (let x = -((camX % 70) + 70) % 70 - 70; x < W + 70; x += 70) ctx.fillRect(x, dashY, 34, 3);
+  ctx.globalAlpha = 1;
+  // roadside posts
+  for (let x = -((camX % 110) + 110) % 110 - 110; x < W + 110; x += 110){
+    ctx.fillStyle = C.steel; ctx.fillRect(x, roadTop - 22, 4, 20);
+    ctx.fillStyle = C.white; ctx.fillRect(x, roadTop - 22, 4, 5);
+  }
+  // start line
+  const sx0 = -camX;
+  if (sx0 > -40 && sx0 < W + 40){
+    ctx.fillStyle = C.white; ctx.fillRect(sx0 - 2, roadTop, 4, roadBot - roadTop);
+    ctx.font = `bold 12px ${FONT_MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('START', sx0, roadTop - 28);
+  }
+  // checkpoints
+  for (let k = 1; k <= N; k++){
+    const x = k * U - camX;
+    if (x < -80 || x > W + 80) continue;
+    const lineNo = state.typed[k - 1] + 1, passed = k <= state.step;
+    if (k === N){
+      // finish line: checkered strip + gantry
+      const sq = 8;
+      for (let yy = roadTop, r = 0; yy < roadBot; yy += sq, r++)
+        for (let c = 0; c < 2; c++){ ctx.fillStyle = (r + c) % 2 ? C.white : '#05070A'; ctx.fillRect(x - sq + c * sq, yy, sq, Math.min(sq, roadBot - yy)); }
+      ctx.fillStyle = C.steel; ctx.fillRect(x - 40, roadTop - 70, 4, 70); ctx.fillRect(x + 36, roadTop - 70, 4, 70);
+      ctx.fillStyle = '#05070A'; ctx.fillRect(x - 46, roadTop - 92, 92, 26);
+      ctx.strokeStyle = C.gold; ctx.lineWidth = 2; ctx.strokeRect(x - 46, roadTop - 92, 92, 26);
+      ctx.fillStyle = C.white; ctx.font = `800 16px ${FONT_DISP}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('FINISH', x, roadTop - 79);
+    } else {
+      ctx.fillStyle = passed ? C.cyan : C.white; ctx.globalAlpha = passed ? 0.9 : 0.35;
+      ctx.fillRect(x - 1.5, roadTop, 3, roadBot - roadTop);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = C.steel; ctx.fillRect(x - 2, roadTop - 52, 4, 52);
+      ctx.fillStyle = '#05070A'; ctx.fillRect(x - 30, roadTop - 74, 60, 24);
+      ctx.strokeStyle = passed ? C.cyan : C.azure; ctx.lineWidth = 2; ctx.strokeRect(x - 30, roadTop - 74, 60, 24);
+      ctx.fillStyle = C.white; ctx.font = `bold 12px ${FONT_MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText((passed ? '✓ ' : '') + 'L' + lineNo, x, roadTop - 62);
+    }
+  }
+  // crash barrier
+  if (crash){
+    const bx = (car.x + 0.28) * U + 54 - camX, bw = 16, bh = 46;
+    ctx.globalAlpha = Math.min(1, Math.max(0, (1.5 - crash.t) / 0.4));
+    for (let i = 0; i < 6; i++){ ctx.fillStyle = i % 2 ? C.white : C.car; ctx.fillRect(bx, carY - 30 + i * (bh / 6), bw, bh / 6); }
+    ctx.strokeStyle = '#05070A'; ctx.lineWidth = 2; ctx.strokeRect(bx, carY - 30, bw, bh);
+    ctx.globalAlpha = 1;
+  }
+  // headlight beam
+  const cx = W * 0.3 + lunge * U;
+  if (!crash){
+    const bg = ctx.createLinearGradient(cx + 50, 0, cx + 190, 0);
+    bg.addColorStop(0, 'rgba(255,255,255,.22)'); bg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(cx + 50, carY - 12); ctx.lineTo(cx + 190, carY - 34); ctx.lineTo(cx + 190, carY + 14); ctx.closePath(); ctx.fill();
+  }
+  // particles behind car (smoke) then car then sparks/confetti
+  for (const p of particles) if (p.type === 'smoke' || p.type === 'puff'){
+    const a = 1 - p.life / p.max; ctx.fillStyle = `rgba(160,175,190,${0.35 * a})`;
+    ctx.beginPath(); ctx.arc(p.x - camX, p.y, p.size * (1 + p.life), 0, Math.PI * 2); ctx.fill();
+  }
+  drawCar(cx, carY - 6, rot + (busy && !reduce ? Math.sin(performance.now() / 40) * 0.015 : 0), car.wheel);
+  if (busy){
+    const label = `Compiling with ${RUNNERS[state.lang].name}…`;
+    ctx.font = `bold 12px ${FONT_MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width + 20, ly = carY - 66;
+    ctx.fillStyle = '#05070A'; ctx.fillRect(cx - tw / 2, ly - 11, tw, 22);
+    ctx.strokeStyle = C.azure; ctx.lineWidth = 2; ctx.strokeRect(cx - tw / 2, ly - 11, tw, 22);
+    ctx.fillStyle = C.white; ctx.fillText(label, cx, ly);
+  }
+  for (const p of particles) if (p.type === 'spark' || p.type === 'conf'){
+    ctx.save(); ctx.globalAlpha = Math.max(0, 1 - p.life / p.max); ctx.fillStyle = p.c;
+    ctx.translate(p.x - camX, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.type === 'conf' ? p.size / 2 : p.size);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // crash banner
+  if (crash){
+    const a = Math.min(1, crash.t * 6) * Math.min(1, Math.max(0, (1.6 - crash.t) / 0.3));
+    ctx.globalAlpha = a;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const size = Math.min(54, W / 9);
+    ctx.font = `italic 800 ${size}px ${FONT_DISP}`;
+    ctx.lineWidth = 7; ctx.strokeStyle = '#05070A'; ctx.strokeText('CRASH!', W / 2, H * 0.22);
+    ctx.fillStyle = C.white; ctx.fillText('CRASH!', W / 2, H * 0.22);
+    const label = KIND_LABEL[crash.kind] + (state.lives > 0 ? `  ·  ${state.lives} car${state.lives === 1 ? '' : 's'} left` : '  ·  no cars left');
+    ctx.font = `bold 13px ${FONT_MONO}`;
+    const tw = ctx.measureText(label).width + 24;
+    ctx.fillStyle = '#05070A'; ctx.fillRect(W / 2 - tw / 2, H * 0.22 + size * 0.55, tw, 24);
+    ctx.strokeStyle = C.car; ctx.lineWidth = 2; ctx.strokeRect(W / 2 - tw / 2, H * 0.22 + size * 0.55, tw, 24);
+    ctx.fillStyle = C.white; ctx.fillText(label, W / 2, H * 0.22 + size * 0.55 + 12);
+    ctx.globalAlpha = 1;
+  }
+}
+
+let last = performance.now(), lastSec = -1;
+function frame(now){
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const U = unit();
+  const diff = car.target - car.x;
+  if (reduce) car.x = car.target;
+  else car.x += diff * Math.min(1, dt * 3);
+  if (Math.abs(car.target - car.x) < 0.003) car.x = car.target;
+  const moving = Math.abs(diff) > 0.01;
+  if (busy && !reduce && Math.random() < 0.3) spawn({type:'puff', x:car.x * U - 52, y:H * 0.58 + (H * 0.37) * 0.55 - 12, vx:-50, vy:-15, max:0.6, size:3});
+  if (moving){
+    car.wheel += diff * 3 * dt * U / 11;
+    if (!reduce && Math.random() < 0.5) spawn({type:'puff', x:car.x * U - 52, y:H * 0.58 + (H * 0.37) * 0.55 - 12, vx:-30, vy:-12, max:0.7, size:3});
+  }
+  if (crash){ crash.t += dt; if (crash.t > (reduce ? 1.1 : 1.6)) { crash = null; renderAll(); } }
+  for (const p of particles){
+    p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    if (p.type === 'spark' || p.type === 'conf') p.vy += 520 * dt;
+  }
+  particles = particles.filter(p => p.life < p.max);
+  if (W) draw(moving);
+
+  if (state.status === 'finishing' && car.x === car.target) finish();
+  if (state.status === 'out' && !crash) showOut();
+  const el = state.status === 'play' || state.status === 'out' ? now - state.t0 : state.tEnd - state.t0;
+  const sec = Math.floor(el / 1000);
+  if (sec !== lastSec){ lastSec = sec; $('#timer').textContent = fmtTime(el); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- wiring ---------------- */
+$('#drive').addEventListener('submit', e => { e.preventDefault(); submit(); });
+input.addEventListener('input', () => {
+  const cur = document.querySelector('.ln.cur .cd, .ln.crashed .cd');
+  const li = state.typed[state.step];
+  if (cur && li !== undefined) cur.textContent = state.lines[li].ind + (input.value.trim() || '_');
+});
+cv.addEventListener('click', () => input.focus());
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => loadLevel(state.level, b.dataset.lang, true)));
+$('#restartBtn').addEventListener('click', () => loadLevel(state.level, state.lang, true));
+$('#realBtn').addEventListener('click', () => {
+  realOn = !realOn; save.real = realOn; writeSave();
+  if (realOn) runnerState = 'unknown';
+  renderRunner();
+});
+$('#hintBtn').addEventListener('click', () => {
+  const li = state.typed[state.step];
+  if (li === undefined || state.status !== 'play') return;
+  if (!state.hinted.has(li)){ state.hinted.add(li); state.hints++; }
+  const box = $('#hintBox'); box.hidden = false; box.textContent = 'Answer:  ' + state.lines[li].expect;
+  input.focus();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#modal').hidden && state.status === 'over') $('#modal').hidden = true; });
+
+function start(data){
+  const pick = data && data.lang ? data : (save.last || {lang:'py', level:0});
+  const lang = LANGS[pick.lang] ? pick.lang : 'py';
+  const level = Math.min(LEVELS.length - 1, Math.max(0, pick.level | 0));
+  resize();
+  loadLevel(level, lang);
+  requestAnimationFrame(frame);
+}
+const hot = window.claude && window.claude.hot;
+if (hot && typeof hot.snapshot === 'function') hot.snapshot(() => ({lang:state.lang, level:state.level}));
+if (hot && typeof hot.ready === 'function') hot.ready(start); else start(hot && hot.data ? hot.data : {});
+</script>

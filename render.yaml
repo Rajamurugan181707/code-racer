@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: code-racer-runner
+    runtime: docker
+    plan: free
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://code-racer.netlify.app
+      - key: RATE_PER_MINUTE
+        value: "20"
+      - key: WALL_SECONDS
+        value: "30"
